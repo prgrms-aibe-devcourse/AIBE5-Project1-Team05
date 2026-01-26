@@ -17,6 +17,18 @@ const SeoulMap = (function () {
         gu: 'https://raw.githubusercontent.com/southkorea/seoul-maps/master/kostat/2013/json/seoul_municipalities_topo_simple.json'
     };
 
+    // Helper: 혼잡도 배지 아이콘/텍스트
+    function getCongestionBadge(level) {
+        const badges = {
+            'quiet': '●',
+            'normal': '●●',
+            'crowded': '●●●',
+            'very_crowded': '!',
+            'unknown': '?'
+        };
+        return badges[level] || '?';
+    }
+
     // Mode Toggle Function
     async function setMode(mode) {
         if (currentMode === mode && cachedData[mode]) return;
@@ -118,11 +130,83 @@ const SeoulMap = (function () {
         if (!svg) return;
 
         // Clear existing map elements (paths and markers)
-        // Note: We might want to keep the loading text if it's there, but usually it's managed by loadAndRender
         const paths = svg.querySelectorAll('.district-path');
         paths.forEach(p => p.remove());
         const markers = svg.querySelectorAll('.map-marker-group');
         markers.forEach(m => m.remove());
+
+        // [추가] SVG 그라데이션 정의 추가 (한 번만 실행)
+        if (!svg.querySelector('#markerGradients')) {
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            defs.id = 'markerGradients';
+
+            // Quiet - 초록색 그라데이션
+            const gradQuiet = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            gradQuiet.setAttribute("id", "gradientQuiet");
+            gradQuiet.setAttribute("x1", "0%");
+            gradQuiet.setAttribute("y1", "0%");
+            gradQuiet.setAttribute("x2", "0%");
+            gradQuiet.setAttribute("y2", "100%");
+            gradQuiet.innerHTML = `
+                <stop offset="0%" style="stop-color:#66bb6a;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#43a047;stop-opacity:1" />
+            `;
+            defs.appendChild(gradQuiet);
+
+            // Normal - 노란색 그라데이션
+            const gradNormal = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            gradNormal.setAttribute("id", "gradientNormal");
+            gradNormal.setAttribute("x1", "0%");
+            gradNormal.setAttribute("y1", "0%");
+            gradNormal.setAttribute("x2", "0%");
+            gradNormal.setAttribute("y2", "100%");
+            gradNormal.innerHTML = `
+                <stop offset="0%" style="stop-color:#ffca28;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ffa000;stop-opacity:1" />
+            `;
+            defs.appendChild(gradNormal);
+
+            // Crowded - 주황/빨강 그라데이션
+            const gradCrowded = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            gradCrowded.setAttribute("id", "gradientCrowded");
+            gradCrowded.setAttribute("x1", "0%");
+            gradCrowded.setAttribute("y1", "0%");
+            gradCrowded.setAttribute("x2", "0%");
+            gradCrowded.setAttribute("y2", "100%");
+            gradCrowded.innerHTML = `
+                <stop offset="0%" style="stop-color:#ff7043;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#e53935;stop-opacity:1" />
+            `;
+            defs.appendChild(gradCrowded);
+
+            // Very Crowded - 진한 빨강 그라데이션
+            const gradVeryCrowded = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            gradVeryCrowded.setAttribute("id", "gradientVeryCrowded");
+            gradVeryCrowded.setAttribute("x1", "0%");
+            gradVeryCrowded.setAttribute("y1", "0%");
+            gradVeryCrowded.setAttribute("x2", "0%");
+            gradVeryCrowded.setAttribute("y2", "100%");
+            gradVeryCrowded.innerHTML = `
+                <stop offset="0%" style="stop-color:#d32f2f;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#b71c1c;stop-opacity:1" />
+            `;
+            defs.appendChild(gradVeryCrowded);
+
+            // Unknown - 회색 그라데이션
+            const gradUnknown = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            gradUnknown.setAttribute("id", "gradientUnknown");
+            gradUnknown.setAttribute("x1", "0%");
+            gradUnknown.setAttribute("y1", "0%");
+            gradUnknown.setAttribute("x2", "0%");
+            gradUnknown.setAttribute("y2", "100%");
+            gradUnknown.innerHTML = `
+                <stop offset="0%" style="stop-color:#bdbdbd;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#757575;stop-opacity:1" />
+            `;
+            defs.appendChild(gradUnknown);
+
+            svg.appendChild(defs);
+        }
 
         // Calculate Bounds for Projection
         let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
@@ -155,8 +239,15 @@ const SeoulMap = (function () {
 
         // Projection Function
         function project(lng, lat) {
-            const x = (lng - minLng) / (maxLng - minLng) * (width - 40) + 20; // 20px padding
-            const y = height - ((lat - minLat) / (maxLat - minLat) * (height - 40)) - 20;
+            // [수정됨] 지도 크기 10% 축소 (scale 0.9)
+            const scale = 0.9;
+            const w = width - 40;
+            const h = height - 40;
+            const offsetX = 20 + (w * (1 - scale) / 2);
+            const offsetY = 20 + (h * (1 - scale) / 2);
+
+            const x = (lng - minLng) / (maxLng - minLng) * (w * scale) + offsetX;
+            const y = height - ((lat - minLat) / (maxLat - minLat) * (h * scale)) - offsetY;
             return [x, y];
         }
 
@@ -231,57 +322,120 @@ const SeoulMap = (function () {
             svg.appendChild(path);
         });
 
-        // [추가된 부분] 지도 위에 20개의 랜덤 마커 추가
-        const addRandomMarkers = () => {
-            // 랜덤하게 20개 지역 선택 (Fisher-Yates Shuffle or simple sort)
-            const shuffled = [...geojson.features].sort(() => 0.5 - Math.random());
-            const selectedFeatures = shuffled.slice(0, 20);
+        // [수정됨] Firebase에서 가져온 실제 장소 데이터로 마커 추가
+        const addPlaceMarkers = async () => {
+            try {
+                // Firebase에서 장소 데이터 가져오기
+                let places = [];
+                if (typeof fetchPlacesFromFirestore === 'function') {
+                    places = await fetchPlacesFromFirestore();
+                    console.log(`Firebase에서 ${places.length}개의 장소 데이터를 가져왔습니다.`);
+                } else {
+                    console.warn('fetchPlacesFromFirestore 함수가 없습니다. firebase-config.js를 로드했는지 확인하세요.');
+                    return;
+                }
 
-            selectedFeatures.forEach(feature => {
-                const centroid = feature.properties.centroid;
-                if (!centroid) return;
+                if (places.length === 0) {
+                    console.warn('표시할 장소 데이터가 없습니다.');
+                    return;
+                }
 
-                // project 함수는 상위 스코프(renderGeoJSONToSVG) 내에 있음
-                const [cx, cy] = project(centroid.lng, centroid.lat);
+                // 좌표가 있는 장소만 필터링
+                const validPlaces = places.filter(place => place.lat && place.lng);
+                console.log(`${validPlaces.length}개의 유효한 좌표 데이터를 찾았습니다.`);
 
-                // 마커 컨테이너 그룹 (위치 지정)
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                g.setAttribute("class", "map-marker-group");
-                // [수정됨] 크기 30% 축소 (scale 0.7)
-                g.setAttribute("transform", `translate(${cx}, ${cy}) scale(0.7)`);
+                validPlaces.forEach(place => {
+                    // 좌표를 SVG 좌표로 변환
+                    const [cx, cy] = project(place.lng, place.lat);
 
-                // 1. 그림자 (Shadow) - 바닥에 고정
-                const shadow = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
-                shadow.setAttribute("cx", "0");
-                shadow.setAttribute("cy", "0");
-                shadow.setAttribute("rx", "6");
-                shadow.setAttribute("ry", "2.5");
-                shadow.setAttribute("class", "map-pin-shadow");
-                g.appendChild(shadow);
+                    // 마커 컨테이너 그룹 (위치 지정)
+                    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    g.setAttribute("class", "map-marker-group");
+                    g.setAttribute("data-place-id", place.id);
+                    g.setAttribute("data-place-name", place.name);
+                    g.setAttribute("transform", `translate(${cx}, ${cy}) scale(0.7)`);
 
-                // 2. 핀 그룹 (Pin Group) - 튀어오르는 애니메이션 적용 대상
-                const pinGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                pinGroup.setAttribute("class", "map-pin"); // CSS에서 animation 적용
+                    // 1. 그림자 (Shadow) - 바닥에 고정
+                    const shadow = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                    shadow.setAttribute("cx", "0");
+                    shadow.setAttribute("cy", "0");
+                    shadow.setAttribute("rx", "6");
+                    shadow.setAttribute("ry", "2.5");
+                    shadow.setAttribute("class", "map-pin-shadow");
+                    g.appendChild(shadow);
 
-                // 핀 모양 패스 (Teardrop shape)
-                const pinPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                const d = "M0,0 C-6,-8 -12,-15 -12,-22 A12,12 0 1,1 12,-22 C12,-15 6,-8 0,0 Z";
-                pinPath.setAttribute("d", d);
-                pinGroup.appendChild(pinPath);
+                    // 2. 핀 그룹 (Pin Group) - 튀어오르는 애니메이션 적용 대상
+                    const pinGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    pinGroup.setAttribute("class", "map-pin");
 
-                // 핀 내부 구멍 (White Hole)
-                const pinHole = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                pinHole.setAttribute("cx", "0");
-                pinHole.setAttribute("cy", "-22");
-                pinHole.setAttribute("r", "4.5");
-                pinHole.setAttribute("fill", "white");
-                pinGroup.appendChild(pinHole);
+                    // 핀 모양 패스 (Teardrop shape)
+                    const pinPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    const d = "M0,0 C-6,-8 -12,-15 -12,-22 A12,12 0 1,1 12,-22 C12,-15 6,-8 0,0 Z";
+                    pinPath.setAttribute("d", d);
 
-                g.appendChild(pinGroup);
-                svg.appendChild(g);
-            });
+                    // 혼잡도에 따른 색상 적용
+                    const congestionColor = typeof getCongestionColor === 'function'
+                        ? getCongestionColor(place.congestion)
+                        : '#9E9E9E'; // 기본 회색
+                    pinPath.setAttribute("fill", congestionColor);
+                    pinPath.setAttribute("stroke", "#333");
+                    pinPath.setAttribute("stroke-width", "0.5");
+                    pinGroup.appendChild(pinPath);
+
+                    // 핀 내부 구멍 (White Hole)
+                    const pinHole = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    pinHole.setAttribute("cx", "0");
+                    pinHole.setAttribute("cy", "-22");
+                    pinHole.setAttribute("r", "4.5");
+                    pinHole.setAttribute("fill", "white");
+                    pinGroup.appendChild(pinHole);
+
+                    // 마커 클릭 이벤트 - 장소 상세 정보 표시
+                    g.style.cursor = "pointer";
+                    g.onclick = () => {
+                        console.log(`장소 클릭: ${place.name} (혼잡도: ${place.congestion})`);
+                        // 상세 정보 모달 표시 (detail.html에 있는 기능 사용)
+                        if (typeof showPlaceDetail === 'function') {
+                            showPlaceDetail(place);
+                        } else {
+                            // 간단한 알림으로 대체
+                            const congestionText = typeof getCongestionText === 'function'
+                                ? getCongestionText(place.congestion)
+                                : place.congestion;
+                            alert(`${place.name}\n주소: ${place.address}\n혼잡도: ${congestionText}\n\n${place.congestionMsg || ''}`);
+                        }
+                    };
+
+                    // 마커 호버 효과
+                    g.onmouseenter = function () {
+                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.85)`;
+                        this.style.filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.3))";
+                    };
+                    g.onmouseleave = function () {
+                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.7)`;
+                        this.style.filter = "";
+                    };
+
+                    // 툴팁 (SVG title 요소)
+                    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                    const congestionText = typeof getCongestionText === 'function'
+                        ? getCongestionText(place.congestion)
+                        : place.congestion;
+                    title.textContent = `${place.name}\n혼잡도: ${congestionText}`;
+                    g.appendChild(title);
+
+                    g.appendChild(pinGroup);
+                    svg.appendChild(g);
+                });
+
+                console.log(`${validPlaces.length}개의 장소 마커가 지도에 추가되었습니다.`);
+            } catch (error) {
+                console.error('장소 마커 추가 중 오류 발생:', error);
+            }
         };
-        addRandomMarkers();
+
+        // 비동기 함수 실행
+        addPlaceMarkers();
     }
 
     function showNaverMap(name, lat, lng) {

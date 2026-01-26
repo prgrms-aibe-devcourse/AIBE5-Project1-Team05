@@ -163,50 +163,134 @@ svg.seoul-map {
     fill: var(--color-gray);
 }
 
-/* Map Markers (Pins) */
+/* Map Markers (Pins) - Premium Design */
 .map-marker-group {
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.map-marker-group:hover .map-pin path {
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) 
+            drop-shadow(0 0 20px currentColor);
+}
+
+.map-marker-group:hover .map-pin-glow {
+    opacity: 0.8;
+    transform: scale(1.3);
+}
+
+/* Pin Shape - Enhanced with gradients */
+.map-pin {
+    transform-origin: bottom center;
+    animation: pinFloat 3s ease-in-out infinite;
+    transition: all 0.3s ease;
+}
+
+.map-pin path {
+    stroke: rgba(255, 255, 255, 0.9);
+    stroke-width: 1.5px;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+    transition: filter 0.3s ease;
+}
+
+/* Pin Inner Glow Effect */
+.map-pin-glow {
+    opacity: 0.4;
+    transition: all 0.4s ease;
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* Pin Shadow - More realistic */
+.map-pin-shadow {
+    fill: rgba(0, 0, 0, 0.25);
+    transform-origin: center;
+    animation: shadowFloat 3s ease-in-out infinite;
+    filter: blur(2px);
+}
+
+/* Congestion Level Specific Styles */
+.marker-quiet .map-pin path {
+    fill: url(#gradientQuiet);
+}
+
+.marker-normal .map-pin path {
+    fill: url(#gradientNormal);
+}
+
+.marker-crowded .map-pin path {
+    fill: url(#gradientCrowded);
+}
+
+.marker-very-crowded .map-pin path {
+    fill: url(#gradientVeryCrowded);
+}
+
+/* Premium Floating Animation */
+@keyframes pinFloat {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes shadowFloat {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.25;
+    }
+    50% {
+        transform: scale(0.7);
+        opacity: 0.15;
+    }
+}
+
+@keyframes glowPulse {
+    0%, 100% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+/* Marker Tooltip Enhancement */
+.map-marker-tooltip {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13px;
+    font-weight: 600;
+    fill: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
     pointer-events: none;
 }
 
-/* Pin Shape */
-.map-pin {
-    fill: #2ecc71;
-    /* Vibrant Green */
-    /* Bright Vibrant Red (Old) replaced */
-    stroke: #ffffff;
-    stroke-width: 1.5px;
-    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
-    transform-origin: bottom center;
-    /* Pivot at the tip */
-    animation: pinBounce 1s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
-    /* Bouncing movement */
-}
-
-/* Pin Shadow */
-.map-pin-shadow {
-    fill: rgba(0, 0, 0, 0.3);
-    transform-origin: center;
-    animation: shadowPulse 1s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
+/* Active State */
+.map-marker-group.active .map-pin {
+    animation: pinBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 @keyframes pinBounce {
-    0% {
-        transform: translateY(0);
+    0%, 100% {
+        transform: translateY(0) scale(1);
     }
-
-    100% {
-        transform: translateY(-10px);
+    50% {
+        transform: translateY(-15px) scale(1.1);
     }
 }
 
-@keyframes shadowPulse {
-    0% {
-        transform: scale(1);
-        opacity: 0.3;
-    }
+/* Premium Badge for marker (congestion indicator) */
+.marker-badge {
+    font-size: 10px;
+    font-weight: 700;
+    fill: #ffffff;
+    text-anchor: middle;
+    pointer-events: none;
+}
 
-    100% {
-        transform: scale(0.6);
-        opacity: 0.1;
-    }
+.marker-badge-bg {
+    fill: rgba(0, 0, 0, 0.6);
+    rx: 8;
+    stroke: rgba(255, 255, 255, 0.3);
+    stroke-width: 1;
 }

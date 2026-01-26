@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase 설정 도우미</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .step-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e4e8;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f1f3f5;
+            color: #495057;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .result-box {
+            display: none;
+            background: #f8f9fa;
+            border: 2px solid #28a745;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .result-box.show {
+            display: block;
+        }
+
+        .result-title {
+            font-weight: 600;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        pre {
+            background: #2d3748;
+            color: #f7fafc;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .alert {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔥 Firebase 설정 도우미</h1>
+        <p class="subtitle">Firebase Console에서 가져온 설정 정보를 아래에 입력하세요</p>
+
+        <div class="step">
+            <div class="step-title">📌 Step 1: Firebase Console 접속</div>
+            <p>1. <a href="https://console.firebase.google.com/" target="_blank">Firebase Console</a>에 접속하세요</p>
+            <p>2. 프로젝트 선택 → 프로젝트 설정(⚙️) → 일반 탭</p>
+            <p>3. "내 앱" 섹션에서 웹 앱의 Firebase SDK 구성을 확인하세요</p>
+        </div>
+
+        <div class="alert">
+            ⚠️ 이 페이지는 로컬에서만 사용되며, 입력한 정보는 외부로 전송되지 않습니다.
+        </div>
+
+        <form id="firebase-form">
+            <div class="form-group">
+                <label for="apiKey">API Key</label>
+                <input type="text" id="apiKey" placeholder="AIzaSy..." required>
+                <div class="input-hint">Firebase Console의 apiKey 값을 입력하세요</div>
+            </div>
+
+            <div class="form-group">
+                <label for="projectId">Project ID</label>
+                <input type="text" id="projectId" placeholder="my-project-12345" required>
+                <div class="input-hint">Firebase 프로젝트 ID를 입력하세요</div>
+            </div>
+
+            <div class="form-group">
+                <label for="appId">App ID</label>
+                <input type="text" id="appId" placeholder="1:1234567890:web:abcdef..." required>
+                <div class="input-hint">Firebase Console의 appId 값을 입력하세요</div>
+            </div>
+
+            <div class="form-group">
+                <label for="messagingSenderId">Messaging Sender ID</label>
+                <input type="text" id="messagingSenderId" placeholder="1234567890">
+                <div class="input-hint">Firebase Console의 messagingSenderId 값을 입력하세요</div>
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn-secondary" onclick="resetForm()">초기화</button>
+                <button type="submit" class="btn-primary">생성하기</button>
+            </div>
+        </form>
+
+        <div class="result-box" id="result-box">
+            <div class="result-title">✅ Firebase 설정 코드 생성 완료</div>
+            <p>아래 코드를 복사하여 <strong>js/firebase-config.js</strong> 파일의 firebaseConfig 부분에 붙여넣으세요:</p>
+            <pre id="generated-code"></pre>
+            <button class="copy-btn" onclick="copyToClipboard()">📋 코드 복사</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('firebase-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const projectId = document.getElementById('projectId').value.trim();
+            const appId = document.getElementById('appId').value.trim();
+            const messagingSenderId = document.getElementById('messagingSenderId').value.trim();
+
+            const authDomain = `${projectId}.firebaseapp.com`;
+            const storageBucket = `${projectId}.appspot.com`;
+
+            const config = `const firebaseConfig = {
+    apiKey: "${apiKey}",
+    authDomain: "${authDomain}",
+    projectId: "${projectId}",
+    storageBucket: "${storageBucket}",
+    messagingSenderId: "${messagingSenderId}",
+    appId: "${appId}"
+};`;
+
+            document.getElementById('generated-code').textContent = config;
+            document.getElementById('result-box').classList.add('show');
+
+            // 결과로 스크롤
+            document.getElementById('result-box').scrollIntoView({ behavior: 'smooth' });
+        });
+
+        function resetForm() {
+            document.getElementById('firebase-form').reset();
+            document.getElementById('result-box').classList.remove('show');
+        }
+
+        function copyToClipboard() {
+            const code = document.getElementById('generated-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                btn.textContent = '✓ 복사 완료!';
+                btn.style.background = '#1e7e34';
+
+                setTimeout(() => {
+                    btn.textContent = '📋 코드 복사';
+                    btn.style.background = '#28a745';
+                }, 2000);
+            }).catch(err => {
+                alert('복사에 실패했습니다. 수동으로 복사해주세요.');
+            });
+        }
+    </script>
+</body>
+
+</html>
