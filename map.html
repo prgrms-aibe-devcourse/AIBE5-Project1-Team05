@@ -21,6 +21,7 @@
 
     <!-- [변경된 부분] 서울 지도 스타일시트 추가 -->
     <link rel="stylesheet" href="css/seoul-map.css">
+    <link rel="stylesheet" href="css/seoul-map-ui.css">
     <!-- [변경된 부분] 네이버 지도 API 스크립트 추가 -->
     <script type="text/javascript"
         src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=hcs4yltn62&submodules=gl"></script>
@@ -142,6 +143,56 @@
 
             <div id="naver-map-wrapper" class="naver-map-wrapper">
                 <div id="naver-map" style="width:100%; height:100%;"></div>
+
+                <!-- 검색 및 장소 리스트 패널 -->
+                <div class="map-search-container">
+                    <div class="map-search-box">
+                        <input type="text" id="map-search-input" placeholder="장소 검색 (예: 경복궁, 카페)">
+                        <button id="map-search-btn" aria-label="검색">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="map-category-tags">
+                        <button class="map-tag active" data-cat="all">전체</button>
+                        <button class="map-tag" data-cat="자연">자연</button>
+                        <button class="map-tag" data-cat="문화">문화</button>
+                        <button class="map-tag" data-cat="산책">산책</button>
+                        <button class="map-tag" data-cat="야경">야경</button>
+                        <button class="map-tag" data-cat="카페">카페</button>
+                    </div>
+                    <div class="map-places-list" id="map-places-list">
+                        <!-- 검색 결과 또는 주변 장소가 여기에 표시됨 -->
+                        <div class="map-placeholder">
+                            지도에서 구역을 선택하거나<br>장소를 검색해보세요.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 편의 기능 버튼 -->
+                <div class="map-floating-btns">
+                    <button class="map-float-btn" id="btn-my-location" title="내 위치">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                    </button>
+                    <!-- 현 지도에서 검색 -->
+                    <button class="map-float-pill hidden" id="btn-search-here">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        현 지도에서 검색
+                    </button>
+                </div>
+
                 <button class="map-back-btn" onclick="SeoulMap.backToSeoul()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -209,6 +260,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            // embed 모드 감지 (URL 파라미터 확인)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('embed') === 'true') {
+                document.body.classList.add('embed-mode');
+            }
+
             const user = checkAuth();
             if (user) {
                 updateUserInfo(user);

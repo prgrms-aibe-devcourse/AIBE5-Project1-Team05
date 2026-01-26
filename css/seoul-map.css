@@ -15,18 +15,21 @@
 }
 
 .seoul-map-section.active {
-    height: 85vh;
-    /* Increased height by ~20% */
+    height: 100vh !important;
     opacity: 1;
-    padding: 40px 0 50px 0;
-    /* Bottom padding increased */
+    box-sizing: border-box;
+}
+
+/* Standalone 모드 (map.html 직접 접근 시)에서만 헤더 여백 적용 */
+body:not(.embed-mode) .seoul-map-section.active {
+    height: calc(100vh - 80px) !important;
+    margin-top: 80px !important;
 }
 
 .map-wrapper {
     width: 100%;
     height: 100%;
     position: absolute;
-    /* Changed to absolute for stacking */
     top: 0;
     left: 50%;
     transform: translateX(-50%);
@@ -66,9 +69,9 @@
 
 .map-back-btn {
     position: absolute;
-    top: 90px;
-    /* [변경된 부분] 버튼 위치를 아래로 이동 (기존 20px -> 80px) */
-    left: 20px;
+    right: 45px;
+    /* 우측 상단 */
+    top: 20px;
     z-index: 1000;
     background: var(--color-white);
     padding: 10px 20px;
@@ -88,10 +91,13 @@
     transform: translateY(-2px);
 }
 
+/* CSS 정리 */
+
 /* Map Controls (Dong/Gu Toggle) */
 .map-controls {
     position: absolute;
-    top: 90px;
+    top: 20px;
+    /* 헤더 아래 여백 */
     right: 20px;
     z-index: 1000;
     display: flex;
@@ -137,23 +143,25 @@ svg.seoul-map {
     overflow: visible;
 }
 
+/* 지도 구역 스타일 (JS에서 색상 오버라이드 됨) */
 .district-path {
-    fill: #e5e5e5;
-    /* Lighter shade for light theme compatibility */
-    stroke: #ffffff;
-    stroke-width: 1.5;
+    fill: rgba(97, 97, 97, 0.4);
+    /* 기본값: Unknown */
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 0.5px;
     transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     cursor: pointer;
 }
 
-/* Hover Effect: Pop up */
+/* Hover Effect: Pop up with Gold Glow */
+/* JS onmouseenter가 우선되지만, CSS에서도 폴백으로 설정 */
 .district-path:hover {
-    fill: var(--color-primary);
-    /* Use theme primary color */
-    transform: translateY(-10px) scale(1.02);
-    filter: drop-shadow(0 15px 10px rgba(0, 0, 0, 0.1));
-    stroke: #ffffff;
-    z-index: 10;
+    fill: rgba(212, 175, 55, 0.35);
+    /* Gold Accent */
+    stroke: rgba(212, 175, 55, 0.8);
+    transform: translateY(-5px) scale(1.01);
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4));
+    z-index: 100;
 }
 
 /* Loading Text */
@@ -170,8 +178,7 @@ svg.seoul-map {
 }
 
 .map-marker-group:hover .map-pin path {
-    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) 
-            drop-shadow(0 0 20px currentColor);
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 20px currentColor);
 }
 
 .map-marker-group:hover .map-pin-glow {
@@ -227,19 +234,25 @@ svg.seoul-map {
 
 /* Premium Floating Animation */
 @keyframes pinFloat {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateY(0);
     }
+
     50% {
         transform: translateY(-8px);
     }
 }
 
 @keyframes shadowFloat {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: scale(1);
         opacity: 0.25;
     }
+
     50% {
         transform: scale(0.7);
         opacity: 0.15;
@@ -247,9 +260,12 @@ svg.seoul-map {
 }
 
 @keyframes glowPulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 0.3;
     }
+
     50% {
         opacity: 0.6;
     }
@@ -271,9 +287,12 @@ svg.seoul-map {
 }
 
 @keyframes pinBounce {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateY(0) scale(1);
     }
+
     50% {
         transform: translateY(-15px) scale(1.1);
     }

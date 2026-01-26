@@ -369,10 +369,12 @@ a {
 /* 지도 오버레이 */
 .map-overlay {
     position: fixed;
-    top: 0;
+    top: 80px;
+    /* 헤더 높이만큼 아래로 */
     left: 0;
     width: 100%;
-    height: 100vh;
+    height: calc(100vh - 80px);
+    /* 헤더 제외한 높이 */
     z-index: 990;
     /* 헤더(1000) 바로 아래 */
 

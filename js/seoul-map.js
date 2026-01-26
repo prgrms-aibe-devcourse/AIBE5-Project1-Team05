@@ -11,6 +11,11 @@ const SeoulMap = (function () {
     };
     let currentMode = 'dong'; // 'dong' or 'gu'
 
+    // [추가] 장소 데이터 저장소
+    let allPlaces = [];
+    let naverMarkers = []; // 네이버 지도 마커 인스턴스 저장
+    let infoWindows = []; // 인포윈도우 관리
+
     // Data URLs
     const URLS = {
         dong: 'https://raw.githubusercontent.com/southkorea/seoul-maps/master/kostat/2013/json/seoul_submunicipalities_topo_simple.json',
@@ -277,32 +282,42 @@ const SeoulMap = (function () {
             path.setAttribute("class", "district-path");
             path.setAttribute("data-name", name);
 
-            // [변경된 부분] 훨씬 더 칙칙하고 어두운 계열의 색상 팔레트 (Darker & Duller)
-            // [변경된 부분] 전체적으로 연하고(부드럽고) 어두운 계열 (Soft & Dark Muted)
-            const congestionColors = [
-                "#4b5c6b", // Soft Dark Blue
-                "#4b6b55", // Soft Dark Green
-                "#6b634b", // Soft Dark Yellow/Olive
-                "#6b524b", // Soft Dark Orange/Brown
-                "#6b4b4b"  // Soft Dark Red
+            // [수정됨] 혼잡도별 5단계 프리미엄 색상 팔레트 (Muted/Chic Tones)
+            // 채도를 대폭 낮추고 회색기를 더하여 '칙칙하면서도 고급스러운' 분위기 연출
+            const congestionPalette = [
+                "rgba(75, 107, 85, 0.6)",   // Quiet: Muted Moss Green (차분한 이끼색)
+                "rgba(141, 123, 85, 0.55)", // Normal: Desaturated Ochre (탁한 황토색)
+                "rgba(148, 97, 85, 0.6)",   // Crowded: Dusty Rust (녹슨 주황색)
+                "rgba(115, 65, 65, 0.55)",  // Very Crowded: Muted Burgundy (탁한 버건디)
+                "rgba(70, 75, 80, 0.6)"     // Unknown: Dark Slate (짙은 슬레이트 회색)
             ];
 
-            // 랜덤 색상 선택
-            const randomColor = congestionColors[Math.floor(Math.random() * congestionColors.length)];
+            // 랜덤으로 혼잡도 색상 선택 (시뮬레이션)
+            // 실제 데이터 연동 시에는 feature 속성이나 별도 데이터를 참조해야 함
+            const randomColor = congestionPalette[Math.floor(Math.random() * congestionPalette.length)];
+            const strokeColor = "rgba(255, 255, 255, 0.7)"; // 은은한 경계선
+            const hoverColor = "rgba(212, 175, 55, 0.55)"; // 호버 시 금색 (Gold Accent)
 
-            // 스타일 조정: 동 단위는 작으므로 선 두께를 얇게
-            path.style.strokeWidth = "0.5px";
-            path.style.fill = randomColor; // 랜덤 색상 적용
-            path.style.transition = "fill 0.3s ease, transform 0.3s ease"; // 부드러운 전환 효과
+            // 스타일 조정
+            path.style.stroke = strokeColor;
+            path.style.strokeWidth = "0.5px"; // 얇고 세련된 라인
+            path.style.fill = randomColor;
+            path.style.transition = "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)"; // 부드러운 전환
 
-            // [수정됨] 호버 효과: 깜빡임/고정 버그 해결을 위해 mouseenter/mouseleave 사용 및 appendChild 제거
+            // 호버 효과: 해당 구역이 금색으로 빛나며 강조됨
             path.onmouseenter = function () {
-                this.style.fill = "#bdc3c7"; // Light Silver (어두운 배경 대비)
+                this.style.fill = hoverColor;
+                this.style.stroke = "rgba(212, 175, 55, 0.8)"; // 경계선도 진한 금색
+                this.style.strokeWidth = "1px";
+                this.style.filter = "drop-shadow(0 0 10px rgba(212, 175, 55, 0.4))"; // 글로우 효과
                 this.style.zIndex = "100";
-                // this.parentNode.appendChild(this); // [제거] DOM 재삽입 시 이벤트 끊김 현상 방지
             };
+
             path.onmouseleave = function () {
-                this.style.fill = randomColor; // 원래 색상 복귀
+                this.style.fill = randomColor; // 원래의 랜덤 혼잡도 색상으로 복귀
+                this.style.stroke = strokeColor;
+                this.style.strokeWidth = "0.5px";
+                this.style.filter = "";
                 this.style.zIndex = "";
             };
 
@@ -325,15 +340,23 @@ const SeoulMap = (function () {
         // [수정됨] Firebase에서 가져온 실제 장소 데이터로 마커 추가
         const addPlaceMarkers = async () => {
             try {
-                // Firebase에서 장소 데이터 가져오기
-                let places = [];
-                if (typeof fetchPlacesFromFirestore === 'function') {
-                    places = await fetchPlacesFromFirestore();
-                    console.log(`Firebase에서 ${places.length}개의 장소 데이터를 가져왔습니다.`);
-                } else {
-                    console.warn('fetchPlacesFromFirestore 함수가 없습니다. firebase-config.js를 로드했는지 확인하세요.');
+                // 이미 데이터가 있으면 재사용 (불필요한 Fetch 방지)
+                if (allPlaces.length === 0) {
+                    if (typeof fetchPlacesFromFirestore === 'function') {
+                        allPlaces = await fetchPlacesFromFirestore();
+                        console.log(`Firebase에서 ${allPlaces.length}개의 장소 데이터를 로드했습니다.`);
+                    } else {
+                        console.warn('fetchPlacesFromFirestore 함수가 없습니다.');
+                        return;
+                    }
+                }
+
+                if (allPlaces.length === 0) {
+                    console.warn('표시할 장소 데이터가 없습니다.');
                     return;
                 }
+
+                const places = allPlaces; // 로컬 변수 맵핑
 
                 if (places.length === 0) {
                     console.warn('표시할 장소 데이터가 없습니다.');
@@ -438,28 +461,270 @@ const SeoulMap = (function () {
         addPlaceMarkers();
     }
 
+    // --- Naver Map Logic & Features ---
+
+    // 네이버 지도 표시 및 기능 초기화
     function showNaverMap(name, lat, lng) {
         const seoulWrapper = document.getElementById('seoul-map-wrapper');
         const naverWrapper = document.getElementById('naver-map-wrapper');
 
-        // Visual Transition
+        // UI 전환
         seoulWrapper.classList.add('hidden');
         naverWrapper.classList.add('active');
 
-        // Initialize Naver Map
+        // 지도 초기화 또는 이동
         if (!naverMap) {
-            naverMap = new naver.maps.Map('naver-map', {
-                center: new naver.maps.LatLng(lat, lng),
-                zoom: 16, // 동 단위이므로 줌 레벨 확대
-                mapTypeId: naver.maps.MapTypeId.NORMAL
-            });
+            initNaverMap(lat, lng);
+            // 이벤트 바인딩은 지도가 로드된 후 한 번만
+            bindNaverMapEvents();
         } else {
             const newCenter = new naver.maps.LatLng(lat, lng);
             naverMap.setCenter(newCenter);
             naverMap.setZoom(16);
         }
 
+        // 현재 지역 필터링 (선택된 구/동과 관련된 장소만 보여주거나, 가까운 거리 순)
+        // 여기서는 일단 모든 마커를 보여주고 지도를 이동시킴
+        updateNaverMarkers('all');
+        renderPlaceList(allPlaces);
+
         console.log(`Switched to Naver Map: ${name} (${lat}, ${lng})`);
+    }
+
+    // 네이버 지도 객체 생성
+    function initNaverMap(lat, lng) {
+        naverMap = new naver.maps.Map('naver-map', {
+            gl: true, // 절대 지우지 말 것
+            center: new naver.maps.LatLng(lat, lng),
+            zoom: 16,
+            minZoom: 10,
+            scaleControl: false,
+            logoControl: false,
+            mapDataControl: false,
+            zoomControl: true,
+            zoomControlOptions: {
+                position: naver.maps.Position.TOP_RIGHT
+            },
+            // 사용자 지정 스타일 ID
+            customStyleId: '4166f2a1-c2fa-4d09-92ae-13802768e969' //절대 지우지 말 것
+        });
+    }
+
+    // 이벤트 리스너 바인딩 (최초 1회)
+    function bindNaverMapEvents() {
+        // 검색
+        const searchInput = document.getElementById('map-search-input');
+        const searchBtn = document.getElementById('map-search-btn');
+
+        const doSearch = () => {
+            if (searchInput) searchPlaces(searchInput.value);
+        };
+
+        if (searchBtn) searchBtn.addEventListener('click', doSearch);
+        if (searchInput) {
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') doSearch();
+            });
+        }
+
+        // 카테고리 필터
+        const tags = document.querySelectorAll('.map-tag');
+        tags.forEach(tag => {
+            tag.addEventListener('click', (e) => {
+                // Active 상태 변경
+                tags.forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // 필터링 실행
+                const cat = e.target.getAttribute('data-cat');
+                filterPlaces(cat);
+            });
+        });
+
+        // 내 위치
+        const btnMyLoc = document.getElementById('btn-my-location');
+        if (btnMyLoc) {
+            btnMyLoc.addEventListener('click', () => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(position => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        if (naverMap) {
+                            const newCenter = new naver.maps.LatLng(lat, lng);
+                            naverMap.morph(newCenter, 16);
+                        }
+                    }, (err) => {
+                        console.error(err);
+                        alert('위치 정보를 가져올 수 없습니다. 권한을 확인해주세요.');
+                    });
+                } else {
+                    alert('이 브라우저는 위치 정보를 지원하지 않습니다.');
+                }
+            });
+        }
+    }
+
+    // 마커 생성 및 갱신 Core Logic
+    function updateNaverMarkers(category, keyword = null) {
+        if (!naverMap) return;
+
+        // 기존 마커 제거
+        naverMarkers.forEach(marker => marker.setMap(null));
+        naverMarkers = [];
+
+        // 필터링
+        let filtered = allPlaces;
+
+        if (category && category !== 'all') {
+            filtered = filtered.filter(p => p.category && p.category.includes(category));
+        }
+
+        if (keyword) {
+            const lowKey = keyword.toLowerCase();
+            filtered = filtered.filter(p =>
+                (p.name && p.name.toLowerCase().includes(lowKey)) ||
+                (p.category && p.category.toLowerCase().includes(lowKey)) ||
+                (p.features && p.features.some(f => f.toLowerCase().includes(lowKey)))
+            );
+        }
+
+        // 새 마커 생성
+        filtered.forEach(place => {
+            if (!place.lat || !place.lng) return;
+
+            // HTML 마커 콘텐츠 (SVG)
+            // seoul-map.css/js의 디자인을 그대로 활용 (Inline SVG)
+            // 외부 함수 getCongestionColor 사용
+            const congestionColor = typeof getCongestionColor === 'function'
+                ? getCongestionColor(place.congestion)
+                : '#9E9E9E';
+
+            // 그림자를 위한 Blur는 CSS 필터 사용. 네이버 지도는 오버레이가 많아 성능 고려 필요.
+            const markerHtml = `
+                <div class="naver-marker-wrap" style="cursor: pointer; position: relative;">
+                    <div class="map-marker-group" style="transform: scale(0.8);">
+                        <svg width="40" height="50" viewBox="-20 -30 40 50" style="overflow: visible;">
+                             <defs>
+                                <radialGradient id="shadowGrad">
+                                    <stop offset="0%" stop-color="rgba(0,0,0,0.4)" />
+                                    <stop offset="100%" stop-color="rgba(0,0,0,0)" />
+                                </radialGradient>
+                             </defs>
+                             <!-- 그림자 -->
+                             <ellipse cx="0" cy="2" rx="8" ry="3" fill="url(#shadowGrad)"></ellipse>
+                             <!-- 핀 -->
+                             <path d="M0,0 C-6,-8 -12,-15 -12,-22 A12,12 0 1,1 12,-22 C12,-15 6,-8 0,0 Z" 
+                                   fill="${congestionColor}" stroke="#fff" stroke-width="1.5"></path>
+                             <!-- 내부 원 -->
+                             <circle cx="0" cy="-22" r="4.5" fill="white"></circle>
+                        </svg>
+                    </div>
+                    <!-- 호버 시 이름 표시 (CSS로 제어 가능하지만 간단히 인라인) -->
+                    <div class="marker-label" style="
+                        position: absolute; top: -50px; left: 50%; transform: translateX(-50%);
+                        background: rgba(0,0,0,0.8); color: white; padding: 4px 8px; border-radius: 4px;
+                        font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+                    ">${place.name}</div>
+                </div>
+            `;
+
+            const marker = new naver.maps.Marker({
+                position: new naver.maps.LatLng(place.lat, place.lng),
+                map: naverMap,
+                title: place.name,
+                icon: {
+                    content: markerHtml,
+                    size: new naver.maps.Size(40, 50),
+                    anchor: new naver.maps.Point(20, 50)
+                }
+            });
+
+            // 마커 클릭 이벤트
+            naver.maps.Event.addListener(marker, 'click', () => {
+                if (typeof showPlaceDetail === 'function') {
+                    showPlaceDetail(place);
+                }
+
+                // 지도 중심 이동 및 확대
+                naverMap.panTo(marker.getPosition());
+
+                // 호버 효과 유지 등을 위해 스타일 변경 가능
+            });
+
+            // 호버 이벤트 (커스텀 HTML 마커이므로 DOM 이벤트 사용 불가, 네이버 API Event 사용)
+            // 하지만 icon content가 HTML 문자열이면 DOM 접근이 어렵다.
+            // 대신 mouseover 리스너를 통해 마커 zIndex 등을 조정할 수 있다.
+            naver.maps.Event.addListener(marker, 'mouseover', () => {
+                marker.setZIndex(100);
+                // 라벨 표시 로직은 DOM 요소에 직접 접근해야 하는데, 네이버 마커는 내부적으로 div를 생성함.
+                // 복잡하므로 여기서는 생략하거나, title 속성 활용.
+            });
+            naver.maps.Event.addListener(marker, 'mouseout', () => {
+                marker.setZIndex(1);
+            });
+
+            naverMarkers.push(marker);
+        });
+
+        // 리스트 업데이트
+        renderPlaceList(filtered);
+    }
+
+    // 장소 검색 실행
+    function searchPlaces(keyword) {
+        if (!keyword || !keyword.trim()) {
+            // 키워드 없으면 전체 보이기 (또는 현재 카테고리 유지 - 개선 필요)
+            // 여기서는 단순화하여 전체 리셋
+            updateNaverMarkers('all');
+            return;
+        }
+        updateNaverMarkers(null, keyword);
+    }
+
+    // 카테고리 필터 실행
+    function filterPlaces(category) {
+        const searchInput = document.getElementById('map-search-input');
+        const keyword = searchInput ? searchInput.value : null;
+        updateNaverMarkers(category, keyword);
+    }
+
+    // 사이드바 리스트 렌더링
+    function renderPlaceList(places) {
+        const listEl = document.getElementById('map-places-list');
+        if (!listEl) return;
+
+        if (places.length === 0) {
+            listEl.innerHTML = '<div class="map-placeholder">검색 결과가 없습니다.</div>';
+            return;
+        }
+
+        listEl.innerHTML = places.map(p => `
+            <div class="map-place-item" onclick="SeoulMap.focusPlace('${p.id}')">
+                <div class="map-place-name">${p.name}</div>
+                <div class="map-place-desc">${p.shortDesc || p.description || ''}</div>
+                <div class="map-place-meta">
+                    <span>${p.category || '기타'}</span>
+                    <span style="color: ${typeof getCongestionColor === 'function' ? getCongestionColor(p.congestion) : '#aaa'}">
+                        ● ${typeof getCongestionText === 'function' ? getCongestionText(p.congestion) : p.congestion}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // [Public] 리스트 클릭 시 해당 장소로 이동하기 위한 함수
+    function focusPlace(placeId) {
+        const place = allPlaces.find(p => p.id === placeId);
+        if (place && naverMap) {
+            const loc = new naver.maps.LatLng(place.lat, place.lng);
+            naverMap.morph(loc, 17); // 줌인 & 이동
+
+            // 모바일 등에서는 패널이 지도를 가릴 수 있으므로 처리 필요할 수 있음
+
+            if (typeof showPlaceDetail === 'function') {
+                showPlaceDetail(place);
+            }
+        }
     }
 
     function backToSeoul() {
@@ -468,13 +733,12 @@ const SeoulMap = (function () {
 
         naverWrapper.classList.remove('active');
         seoulWrapper.classList.remove('hidden');
-
-        // 지도 상태 유지를 위해 별도 리렌더링 불필요
     }
 
     return {
         init,
         setMode,
-        backToSeoul
+        backToSeoul,
+        focusPlace // Public 노출
     };
 })();
