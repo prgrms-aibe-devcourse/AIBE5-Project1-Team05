@@ -109,6 +109,51 @@ body:not(.embed-mode) .seoul-map-section.active {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Marker Toggle (좌측 상단) */
+.map-marker-toggle {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+
+.map-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.map-toggle-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.map-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.map-toggle-btn.active {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: rgba(212, 175, 55, 0.5);
+    color: #D4AF37;
+}
+
+.map-toggle-btn.active svg {
+    transform: scale(1.1);
+}
+
 .map-mode-btn {
     padding: 8px 16px;
     border-radius: 20px;
@@ -164,6 +209,22 @@ svg.seoul-map {
     z-index: 100;
 }
 
+/* 구 이름 레이블 스타일 */
+.district-label {
+    font-family: 'Noto Sans KR', sans-serif;
+    /* 현대적인 산세리프체 */
+    font-size: 18px;
+    font-weight: 700;
+    fill: url(#labelGradient);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    /* 클릭 이벤트 무시 */
+    user-select: none;
+    letter-spacing: 2px;
+    opacity: 1;
+    /* 완전 불투명 */
+}
+
 /* Loading Text */
 #loading-text {
     font-family: var(--font-main);
@@ -174,7 +235,7 @@ svg.seoul-map {
 /* Map Markers (Pins) - Premium Design */
 .map-marker-group {
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
 }
 
 .map-marker-group:hover .map-pin path {

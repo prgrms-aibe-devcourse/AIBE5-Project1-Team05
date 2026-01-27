@@ -9,12 +9,13 @@ const SeoulMap = (function () {
         dong: null,
         gu: null
     };
-    let currentMode = 'dong'; // 'dong' or 'gu'
+    let currentMode = 'gu'; // 'dong' or 'gu' - 초기값은 구 단위
 
     // [추가] 장소 데이터 저장소
     let allPlaces = [];
     let naverMarkers = []; // 네이버 지도 마커 인스턴스 저장
     let infoWindows = []; // 인포윈도우 관리
+    let markersVisible = true; // 마커 표시 여부
 
     // Data URLs
     const URLS = {
@@ -57,6 +58,21 @@ const SeoulMap = (function () {
     // Core Load & Render Logic
     async function loadAndRender() {
         try {
+            // 구 단위 데이터가 없으면 먼저 로드 (레이블용)
+            if (!cachedData['gu']) {
+                try {
+                    const guResponse = await fetch(URLS['gu']);
+                    if (guResponse.ok) {
+                        const guTopoData = await guResponse.json();
+                        const guObjectName = Object.keys(guTopoData.objects)[0];
+                        cachedData['gu'] = topojson.feature(guTopoData, guTopoData.objects[guObjectName]);
+                        console.log('구 단위 데이터 로드 완료 (레이블용)');
+                    }
+                } catch (err) {
+                    console.warn('구 단위 데이터 로드 실패:', err);
+                }
+            }
+
             // Check Cache
             if (cachedData[currentMode]) {
                 renderGeoJSONToSVG(cachedData[currentMode]);
@@ -210,6 +226,20 @@ const SeoulMap = (function () {
             `;
             defs.appendChild(gradUnknown);
 
+            // 구 이름 레이블용 금색 그라데이션
+            const labelGrad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            labelGrad.setAttribute("id", "labelGradient");
+            labelGrad.setAttribute("x1", "0%");
+            labelGrad.setAttribute("y1", "0%");
+            labelGrad.setAttribute("x2", "0%");
+            labelGrad.setAttribute("y2", "100%");
+            labelGrad.innerHTML = `
+                <stop offset="0%" style="stop-color:#E8D68A;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#C9A526;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#A88620;stop-opacity:1" />
+            `;
+            defs.appendChild(labelGrad);
+
             svg.appendChild(defs);
         }
 
@@ -337,6 +367,43 @@ const SeoulMap = (function () {
             svg.appendChild(path);
         });
 
+        // [추가] 구 이름 레이블 표시 (항상 구 데이터 사용)
+        addDistrictLabels(svg, project);
+
+        function addDistrictLabels(svg, project) {
+            // 구 단위 데이터가 없으면 레이블 표시 안 함
+            if (!cachedData['gu']) return;
+
+            const guData = cachedData['gu'];
+
+            guData.features.forEach(feature => {
+                const name = feature.properties.name || feature.properties.SIG_KOR_NM || feature.properties.adm_nm || "Unknown";
+
+                // 중심점 계산 (없으면 직접 계산)
+                let centroid = feature.properties.centroid;
+                if (!centroid) {
+                    centroid = calculateCentroid(feature.geometry.coordinates);
+                    feature.properties.centroid = centroid;
+                }
+
+                const [x, y] = project(centroid.lng, centroid.lat);
+
+                // SVG 텍스트 요소 생성
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", y);
+                text.setAttribute("class", "district-label");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "middle");
+                // "중구"는 예외로 풀네임 표시, 나머지는 마지막 '구' 제거
+                const displayName = name === '중구' ? name : name.replace(/구$/, '');
+                text.textContent = displayName; // "강남구" -> "강남", "구로구" -> "구로", "중구" -> "중구"
+
+                svg.appendChild(text);
+            });
+        }
+
+
         // [수정됨] Firebase에서 가져온 실제 장소 데이터로 마커 추가
         const addPlaceMarkers = async () => {
             try {
@@ -376,7 +443,7 @@ const SeoulMap = (function () {
                     g.setAttribute("class", "map-marker-group");
                     g.setAttribute("data-place-id", place.id);
                     g.setAttribute("data-place-name", place.name);
-                    g.setAttribute("transform", `translate(${cx}, ${cy}) scale(0.7)`);
+                    g.setAttribute("transform", `translate(${cx}, ${cy}) scale(0.56)`);
 
                     // 1. 그림자 (Shadow) - 바닥에 고정
                     const shadow = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
@@ -431,11 +498,11 @@ const SeoulMap = (function () {
 
                     // 마커 호버 효과
                     g.onmouseenter = function () {
-                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.85)`;
+                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.68)`;
                         this.style.filter = "drop-shadow(0 4px 8px rgba(0,0,0,0.3))";
                     };
                     g.onmouseleave = function () {
-                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.7)`;
+                        this.style.transform = `translate(${cx}px, ${cy}px) scale(0.56)`;
                         this.style.filter = "";
                     };
 
@@ -449,6 +516,12 @@ const SeoulMap = (function () {
 
                     g.appendChild(pinGroup);
                     svg.appendChild(g);
+
+                    // 마커 토글 상태에 따라 표시/숨김
+                    if (!markersVisible) {
+                        g.style.display = 'none';
+                        g.style.opacity = '0';
+                    }
                 });
 
                 console.log(`${validPlaces.length}개의 장소 마커가 지도에 추가되었습니다.`);
@@ -486,7 +559,9 @@ const SeoulMap = (function () {
         // 현재 지역 필터링 (선택된 구/동과 관련된 장소만 보여주거나, 가까운 거리 순)
         // 여기서는 일단 모든 마커를 보여주고 지도를 이동시킴
         updateNaverMarkers('all');
-        renderPlaceList(allPlaces);
+        if (typeof window.renderPlaceList === 'function') {
+            window.renderPlaceList(allPlaces);
+        }
 
         console.log(`Switched to Naver Map: ${name} (${lat}, ${lng})`);
     }
@@ -667,7 +742,9 @@ const SeoulMap = (function () {
         });
 
         // 리스트 업데이트
-        renderPlaceList(filtered);
+        if (typeof window.renderPlaceList === 'function') {
+            window.renderPlaceList(filtered);
+        }
     }
 
     // 장소 검색 실행
@@ -688,29 +765,8 @@ const SeoulMap = (function () {
         updateNaverMarkers(category, keyword);
     }
 
-    // 사이드바 리스트 렌더링
-    function renderPlaceList(places) {
-        const listEl = document.getElementById('map-places-list');
-        if (!listEl) return;
-
-        if (places.length === 0) {
-            listEl.innerHTML = '<div class="map-placeholder">검색 결과가 없습니다.</div>';
-            return;
-        }
-
-        listEl.innerHTML = places.map(p => `
-            <div class="map-place-item" onclick="SeoulMap.focusPlace('${p.id}')">
-                <div class="map-place-name">${p.name}</div>
-                <div class="map-place-desc">${p.shortDesc || p.description || ''}</div>
-                <div class="map-place-meta">
-                    <span>${p.category || '기타'}</span>
-                    <span style="color: ${typeof getCongestionColor === 'function' ? getCongestionColor(p.congestion) : '#aaa'}">
-                        ● ${typeof getCongestionText === 'function' ? getCongestionText(p.congestion) : p.congestion}
-                    </span>
-                </div>
-            </div>
-        `).join('');
-    }
+    // 사이드바 리스트 렌더링 (map.html의 window.renderPlaceList 사용)
+    // 혼잡도별 accordion 형식으로 표시됨
 
     // [Public] 리스트 클릭 시 해당 장소로 이동하기 위한 함수
     function focusPlace(placeId) {
@@ -735,10 +791,36 @@ const SeoulMap = (function () {
         seoulWrapper.classList.remove('hidden');
     }
 
+    // 마커 표시/숨김 토글
+    function toggleMarkers() {
+        markersVisible = !markersVisible;
+        const btn = document.getElementById('btn-toggle-markers');
+        const markers = document.querySelectorAll('.map-marker-group');
+
+        if (markersVisible) {
+            // 마커 표시
+            markers.forEach(marker => {
+                marker.style.display = '';
+                marker.style.opacity = '1';
+            });
+            if (btn) btn.classList.add('active');
+        } else {
+            // 마커 숨김
+            markers.forEach(marker => {
+                marker.style.opacity = '0';
+                setTimeout(() => {
+                    marker.style.display = 'none';
+                }, 300); // 페이드아웃 애니메이션 시간
+            });
+            if (btn) btn.classList.remove('active');
+        }
+    }
+
     return {
         init,
         setMode,
         backToSeoul,
-        focusPlace // Public 노출
+        focusPlace, // Public 노출
+        toggleMarkers // 마커 토글 함수 노출
     };
 })();
